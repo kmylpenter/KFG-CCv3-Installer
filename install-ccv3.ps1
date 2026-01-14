@@ -627,102 +627,96 @@ if ($missing.Count -gt 0) {
 
 Write-Step "3/6" "Sprawdzanie wirtualizacji i Docker Desktop"
 
-# Sprawdz Hyper-V przed Docker
-$hyperVEnabled = $false
+# Najpierw sprawdz czy Docker juz dziala - jesli tak, Hyper-V musi byc OK
+$dockerWorks = $false
 try {
-    $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
-    if ($hyperVFeature -and $hyperVFeature.State -eq "Enabled") {
-        $hyperVEnabled = $true
-        Write-OK "Hyper-V jest wlaczony"
+    docker ps 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $dockerWorks = $true
+        Write-OK "Docker Desktop dziala (Hyper-V OK)"
     }
 } catch {}
 
-if (-not $hyperVEnabled) {
-    # Sprawdz czy wirtualizacja jest wspierana
-    $vmSupport = (Get-CimInstance -ClassName Win32_Processor).VMMonitorModeExtensions
+if ($dockerWorks) {
+    $skipDocker = $false
+    $hyperVEnabled = $true
+} else {
+    # Docker nie dziala - sprawdz Hyper-V
+    $hyperVEnabled = $false
+    try {
+        $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
+        if ($hyperVFeature -and $hyperVFeature.State -eq "Enabled") {
+            $hyperVEnabled = $true
+            Write-OK "Hyper-V jest wlaczony"
+        }
+    } catch {
+        # Nie mamy uprawnien admina - sprawdz alternatywnie przez systeminfo
+        $sysinfo = systeminfo 2>$null | Select-String "Hyper-V"
+        if ($sysinfo -match "hypervisor has been detected") {
+            $hyperVEnabled = $true
+            Write-OK "Hyper-V jest wlaczony (wykryty hypervisor)"
+        }
+    }
+}
 
-    Write-Warning "Hyper-V nie jest wlaczony!"
+if (-not $hyperVEnabled -and -not $dockerWorks) {
+    Write-Warning "Docker nie dziala - sprawdz Hyper-V"
     Write-Host ""
-    Write-Host "    Docker Desktop wymaga Hyper-V do dzialania." -ForegroundColor White
-    Write-Host ""
 
-    if ($vmSupport) {
-        Write-Host "    Wirtualizacja CPU: OK (wspierana)" -ForegroundColor Green
-        Write-Host ""
+    # Sprawdz czy uruchomiono jako Administrator
+    $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-        # Sprawdz czy uruchomiono jako Administrator
-        $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if ($isAdmin) {
+        if (Ask-User "Czy chcesz teraz wlaczyc Hyper-V? (wymaga restartu)") {
+            Write-Host ""
+            Write-Info "Wlaczam Hyper-V..."
 
-        if ($isAdmin) {
-            if (Ask-User "Czy chcesz teraz wlaczyc Hyper-V? (wymaga restartu)") {
-                Write-Host ""
-                Write-Info "Wlaczam Hyper-V..."
-
-                try {
-                    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart | Out-Null
-                    Write-OK "Hyper-V wlaczony"
-                } catch {
-                    Write-Warning "Nie udalo sie wlaczyc Hyper-V: $_"
-                }
-
-                try {
-                    Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart | Out-Null
-                    Write-OK "Virtual Machine Platform wlaczony"
-                } catch {
-                    Write-Warning "Nie udalo sie wlaczyc VirtualMachinePlatform: $_"
-                }
-
-                Write-Host ""
-                Write-Host "  +===========================================================+" -ForegroundColor Yellow
-                Write-Host "  |  Hyper-V zostal wlaczony - wymagany RESTART komputera!    |" -ForegroundColor Yellow
-                Write-Host "  |                                                           |" -ForegroundColor Yellow
-                Write-Host "  |  Po restarcie uruchom instalator ponownie.                |" -ForegroundColor Yellow
-                Write-Host "  +===========================================================+" -ForegroundColor Yellow
-                Write-Host ""
-
-                if (Ask-User "Czy chcesz teraz zrestartowac komputer?") {
-                    Write-Info "Restartuje komputer za 5 sekund..."
-                    Start-Sleep -Seconds 5
-                    Restart-Computer -Force
-                } else {
-                    Write-Info "Zrestartuj komputer recznie i uruchom instalator ponownie."
-                    exit 0
-                }
+            try {
+                Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart | Out-Null
+                Write-OK "Hyper-V wlaczony"
+            } catch {
+                Write-Warning "Nie udalo sie wlaczyc Hyper-V: $_"
             }
-        } else {
-            Write-Warning "Instalator nie jest uruchomiony jako Administrator!"
+
+            try {
+                Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart | Out-Null
+                Write-OK "Virtual Machine Platform wlaczony"
+            } catch {
+                Write-Warning "Nie udalo sie wlaczyc VirtualMachinePlatform: $_"
+            }
+
             Write-Host ""
-            Write-Host "    Aby automatycznie wlaczyc Hyper-V:" -ForegroundColor Yellow
-            Write-Host "      1. Zamknij ten terminal" -ForegroundColor Gray
-            Write-Host "      2. Kliknij prawym na PowerShell -> Uruchom jako administrator" -ForegroundColor Gray
-            Write-Host "      3. Uruchom instalator ponownie" -ForegroundColor Gray
+            Write-Host "  +===========================================================+" -ForegroundColor Yellow
+            Write-Host "  |  Hyper-V zostal wlaczony - wymagany RESTART komputera!    |" -ForegroundColor Yellow
+            Write-Host "  |                                                           |" -ForegroundColor Yellow
+            Write-Host "  |  Po restarcie uruchom Docker Desktop i instalator.        |" -ForegroundColor Yellow
+            Write-Host "  +===========================================================+" -ForegroundColor Yellow
             Write-Host ""
-            Write-Host "    Lub recznie wlacz Hyper-V:" -ForegroundColor Yellow
-            Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart" -ForegroundColor Cyan
-            Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart" -ForegroundColor Cyan
-            Write-Host "      Restart-Computer" -ForegroundColor Cyan
+
+            if (Ask-User "Czy chcesz teraz zrestartowac komputer?") {
+                Write-Info "Restartuje komputer za 5 sekund..."
+                Start-Sleep -Seconds 5
+                Restart-Computer -Force
+            } else {
+                Write-Info "Zrestartuj komputer recznie i uruchom instalator ponownie."
+                exit 0
+            }
         }
     } else {
-        Write-Error-Custom "Wirtualizacja CPU NIE jest wspierana lub wylaczona w BIOS!"
-        Write-Host ""
-        Write-Host "    Sprawdz ustawienia BIOS:" -ForegroundColor Yellow
-        Write-Host "      1. Uruchom ponownie komputer" -ForegroundColor Gray
-        Write-Host "      2. Wejdz do BIOS (F2/F10/Del przy starcie)" -ForegroundColor Gray
-        Write-Host "      3. Znajdz: Intel VT-x / AMD-V / SVM Mode" -ForegroundColor Gray
-        Write-Host "      4. Wlacz -> Zapisz -> Restart" -ForegroundColor Gray
+        Write-Host "    Aby naprawic:" -ForegroundColor Yellow
+        Write-Host "      1. Uruchom Docker Desktop" -ForegroundColor Gray
+        Write-Host "      2. Jesli blad - uruchom instalator jako Administrator" -ForegroundColor Gray
     }
 
     Write-Host ""
-    if (-not (Ask-User "Czy chcesz kontynuowac bez Docker? (CCv3 zadziala, ale bez kontenerow)")) {
+    if (-not (Ask-User "Czy chcesz kontynuowac bez Docker? (CCv3 zadziala, ale bez bazy danych)")) {
         Write-Host ""
-        Write-Info "Wlacz Hyper-V, zrestartuj komputer i uruchom instalator ponownie."
+        Write-Info "Uruchom Docker Desktop i instalator ponownie."
         exit 0
     }
 
-    Write-Warning "Kontynuuje bez Docker - niektore funkcje CCv3 beda niedostepne"
+    Write-Warning "Kontynuuje bez Docker - baza danych CCv3 niedostepna"
     $skipDocker = $true
-} else {
-    $skipDocker = $false
 }
 
 # Sprawdz i zaktualizuj WSL (jesli Hyper-V OK)
