@@ -830,61 +830,87 @@ if (-not $skipDocker) {
 }
 
 # ============================================================
-# KROK 4: GLOBALNA INSTALACJA HOOKOW CCv3
+# KROK 4: KLONOWANIE CCv3 I URUCHOMIENIE WIZARDA
 # ============================================================
 
-Write-Step "4/6" "Globalna instalacja hookow CCv3"
+Write-Step "4/6" "Instalacja CCv3 (oficjalny wizard)"
 
-$claudeDir = "$env:USERPROFILE\.claude"
-$hooksDir = "$claudeDir\hooks"
+$ccv3Dir = "$env:USERPROFILE\.ccv3"
+$opcDir = "$ccv3Dir\opc"
 
-# Sprawdz czy hooki CCv3 juz sa zainstalowane
-$ccv3HooksInstalled = (Test-Path "$hooksDir\ccv3-pre-compact.ps1") -or (Test-Path "$hooksDir\pre-compact.sh")
+# Sprawdz czy CCv3 juz sklonowane
+if (Test-Path $opcDir) {
+    Write-OK "CCv3 juz sklonowane w ~/.ccv3/"
 
-if ($ccv3HooksInstalled) {
-    Write-OK "Hooki CCv3 juz zainstalowane w ~/.claude/hooks/"
-    Write-Info "Pomijam reinstalacje globalnych hookow"
+    if (Ask-User "Czy chcesz zaktualizowac CCv3 (git pull)?") {
+        Write-Info "Aktualizuje CCv3..."
+        Set-Location $ccv3Dir
+        git pull 2>$null
+        Write-OK "CCv3 zaktualizowane"
+    }
 } else {
-    # Usun stare hooki KFG/CCv2
-    $removed = Remove-OldHooks
-    if ($removed -gt 0) {
-        Write-OK "Usunieto $removed starych hookow KFG/CCv2"
+    Write-Info "Klonuje CCv3 do ~/.ccv3/..."
+
+    $ErrorActionPreference = "SilentlyContinue"
+
+    # Probuj oficjalne repo
+    git clone https://github.com/parcadei/Continuous-Claude-v3.git $ccv3Dir 2>$null
+
+    if (-not (Test-Path $opcDir)) {
+        Write-Warning "Oficjalne repo niedostepne, probuje mirror..."
+        git clone https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git $ccv3Dir 2>$null
     }
 
-    # Utworz strukture folderow
-    if (-not (Test-Path $hooksDir)) {
-        New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
-        Write-OK "Utworzono folder ~/.claude/hooks/"
-    }
+    $ErrorActionPreference = "Stop"
 
-    # Klonuj CCv3 tymczasowo zeby skopiowac hooki
-    $tempDir = "$env:TEMP\ccv3-hooks-$(Get-Date -Format 'yyyyMMddHHmmss')"
-    Write-Info "Pobieram hooki CCv3..."
-
-    $cloned = $false
-    try {
-        git clone --depth 1 https://github.com/parcadei/Continuous-Claude-v3.git $tempDir 2>&1 | Out-Null
-        $cloned = Test-Path $tempDir
-    } catch {}
-
-    if (-not $cloned) {
-        try {
-            git clone --depth 1 https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git $tempDir 2>&1 | Out-Null
-            $cloned = Test-Path $tempDir
-        } catch {}
-    }
-
-    if ($cloned -and (Test-Path "$tempDir\hooks")) {
-        # Kopiuj wszystkie hooki
-        Copy-Item -Path "$tempDir\hooks\*" -Destination $hooksDir -Recurse -Force
-        Write-OK "Hooki CCv3 zainstalowane do ~/.claude/hooks/"
-
-        # Cleanup
-        Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
+    if (Test-Path $opcDir) {
+        Write-OK "CCv3 sklonowane do ~/.ccv3/"
     } else {
-        Write-Warning "Nie udalo sie pobrac hookow - zainstaluj recznie pozniej"
+        Write-Error-Custom "Nie udalo sie sklonowac CCv3!"
+        Write-Host ""
+        Write-Host "    Sprobuj recznie:" -ForegroundColor Yellow
+        Write-Host "      git clone https://github.com/parcadei/Continuous-Claude-v3.git $ccv3Dir" -ForegroundColor Cyan
+        exit 1
     }
 }
+
+# Uruchom uv sync
+Write-Host ""
+Write-Info "Instaluje zaleznosci Python (uv sync)..."
+Set-Location $opcDir
+
+$ErrorActionPreference = "SilentlyContinue"
+uv sync 2>$null
+$ErrorActionPreference = "Stop"
+
+Write-OK "Zaleznosci Python zainstalowane"
+
+# Uruchom oficjalny wizard CCv3
+Write-Host ""
+Write-Host "  +===========================================================+" -ForegroundColor Cyan
+Write-Host "  |              OFICJALNY WIZARD CCv3                        |" -ForegroundColor Cyan
+Write-Host "  |                                                           |" -ForegroundColor Cyan
+Write-Host "  |  Wizard zainstaluje:                                      |" -ForegroundColor Cyan
+Write-Host "  |    - 32 agentow                                           |" -ForegroundColor Cyan
+Write-Host "  |    - 109 skills (w tym /handoff)                          |" -ForegroundColor Cyan
+Write-Host "  |    - 30 hookow                                            |" -ForegroundColor Cyan
+Write-Host "  |    - Baze danych PostgreSQL                               |" -ForegroundColor Cyan
+Write-Host "  |    - Diagnostyki i narzedzia                              |" -ForegroundColor Cyan
+Write-Host "  +===========================================================+" -ForegroundColor Cyan
+Write-Host ""
+
+if (Ask-User "Uruchomic wizard CCv3 teraz? (ZALECANE)") {
+    Write-Host ""
+    uv run python -m scripts.setup.wizard
+    Write-Host ""
+    Write-OK "Wizard CCv3 zakonczony"
+} else {
+    Write-Warning "Pominieto wizard - uruchom pozniej recznie:"
+    Write-Host "    cd $opcDir" -ForegroundColor Cyan
+    Write-Host "    uv run python -m scripts.setup.wizard" -ForegroundColor Cyan
+}
+
+Set-Location $env:USERPROFILE
 
 # ============================================================
 # KROK 5: SKANOWANIE PROJEKTOW
@@ -1100,8 +1126,8 @@ if ($script:Stats.Errors.Count -gt 0) {
     Write-Host ""
 }
 
-Write-Host "    [>] Hooki globalne: ~/.claude/hooks/" -ForegroundColor Gray
-Write-Host "    [>] Folder projektow: $projectsRoot" -ForegroundColor Gray
+Write-Host "    [>] CCv3 zainstalowane: ~/.ccv3/" -ForegroundColor Gray
+Write-Host "    [>] Hooki/Skills/Agents: ~/.claude/" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "    Nastepne kroki:" -ForegroundColor White
@@ -1109,8 +1135,12 @@ Write-Host ""
 Write-Host "    1. Uruchom Claude Code w dowolnym projekcie:" -ForegroundColor Cyan
 Write-Host "       cd [projekt] && claude" -ForegroundColor Gray
 Write-Host ""
-Write-Host "    2. Hooki CCv3 dzialaja automatycznie dla wszystkich projektow" -ForegroundColor Cyan
+Write-Host "    2. Sprawdz dostepne komendy:" -ForegroundColor Cyan
+Write-Host "       /workflow    - router celow" -ForegroundColor Gray
+Write-Host "       /handoff     - zapisz stan sesji" -ForegroundColor Gray
+Write-Host "       /explore     - eksploruj codebase" -ForegroundColor Gray
+Write-Host "       /build       - buduj funkcjonalnosc" -ForegroundColor Gray
 Write-Host ""
-Write-Host "    3. Dla projektow z opc/ - uruchom wizard:" -ForegroundColor Cyan
-Write-Host "       cd [projekt]/opc && uv sync && uv run python -m scripts.setup.wizard" -ForegroundColor Gray
+Write-Host "    3. Ponowna konfiguracja (jesli potrzebna):" -ForegroundColor Cyan
+Write-Host "       cd ~/.ccv3/opc && uv run python -m scripts.setup.wizard" -ForegroundColor Gray
 Write-Host ""
