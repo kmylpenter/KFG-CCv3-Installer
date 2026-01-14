@@ -85,6 +85,52 @@ function Wait-ForKey {
     $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
+function Fix-SettingsJsonPaths {
+    # Naprawia settings.json po instalacji CCv3 wizard
+    # Zamienia $HOME na bezwzgledne sciezki Windows
+
+    $settingsPath = "$env:USERPROFILE\.claude\settings.json"
+
+    if (-not (Test-Path $settingsPath)) {
+        return @{ Success = $false; Message = "Brak settings.json" }
+    }
+
+    try {
+        $content = Get-Content $settingsPath -Raw
+
+        # Zamien $HOME na Windows path (z forward slashes dla node)
+        $windowsHome = $env:USERPROFILE -replace '\\', '/'
+        $newContent = $content -replace '\$HOME', $windowsHome
+
+        # Zamien bash na komentarz (bash hooki nie dzialaja na Windows bez Git Bash)
+        # Usuwamy linie z bash - te hooki wymagaja portu na Python
+        $lines = $newContent -split "`n"
+        $filteredLines = @()
+        $skipNext = $false
+
+        foreach ($line in $lines) {
+            if ($line -match '"command":\s*"bash ') {
+                # Pomin linie z bash
+                continue
+            }
+            $filteredLines += $line
+        }
+
+        $newContent = $filteredLines -join "`n"
+
+        # Napraw ewentualne podwojne przecinki po usunieciu linii
+        $newContent = $newContent -replace ',\s*,', ','
+        $newContent = $newContent -replace ',\s*\]', ']'
+        $newContent = $newContent -replace ',\s*\}', '}'
+
+        Set-Content $settingsPath -Value $newContent -Encoding UTF8
+
+        return @{ Success = $true; Message = "Naprawiono sciezki w settings.json" }
+    } catch {
+        return @{ Success = $false; Message = "Blad: $_" }
+    }
+}
+
 # ============================================================
 # KFG/CCv2 DETECTION & CLEANUP
 # ============================================================
@@ -960,10 +1006,25 @@ if (Ask-User "Uruchomic wizard CCv3 teraz? (ZALECANE)") {
     uv run python -m scripts.setup.wizard
     Write-Host ""
     Write-OK "Wizard CCv3 zakonczony"
+
+    # KRYTYCZNE: Napraw sciezki w settings.json dla Windows
+    Write-Host ""
+    Write-Info "Naprawiam sciezki w settings.json dla Windows..."
+    $fixResult = Fix-SettingsJsonPaths
+    if ($fixResult.Success) {
+        Write-OK $fixResult.Message
+        Write-OK "Zamieniono \$HOME na $($env:USERPROFILE -replace '\\', '/')"
+        Write-OK "Usunieto bash hooki (niekompatybilne z Windows)"
+    } else {
+        Write-Warning $fixResult.Message
+        Write-Host "    Moze byc konieczna reczna edycja ~/.claude/settings.json" -ForegroundColor Gray
+    }
 } else {
     Write-Warning "Pominieto wizard - uruchom pozniej recznie:"
     Write-Host "    cd $opcDir" -ForegroundColor Cyan
     Write-Host "    uv run python -m scripts.setup.wizard" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Warning "UWAGA: Po uruchomieniu wizard, uruchom Fix-SettingsJsonPaths"
 }
 
 Set-Location $env:USERPROFILE
