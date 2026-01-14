@@ -719,6 +719,51 @@ if (-not $hyperVEnabled) {
     $skipDocker = $false
 }
 
+# Sprawdz i zaktualizuj WSL (jesli Hyper-V OK)
+if (-not $skipDocker) {
+    Write-Host ""
+    Write-Info "Sprawdzam WSL..."
+
+    $wslInstalled = $false
+    $wslNeedsUpdate = $false
+
+    try {
+        $wslVersion = wsl --version 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $wslInstalled = $true
+            Write-OK "WSL zainstalowany"
+        }
+    } catch {}
+
+    if (-not $wslInstalled) {
+        Write-Warning "WSL nie jest zainstalowany lub wymaga aktualizacji"
+
+        $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if ($isAdmin) {
+            if (Ask-User "Czy chcesz zainstalowac/zaktualizowac WSL?") {
+                Write-Info "Aktualizuje WSL..."
+                try {
+                    wsl --update 2>&1 | Out-Null
+                    Write-OK "WSL zaktualizowany"
+
+                    # Ustaw WSL2 jako domyslny
+                    wsl --set-default-version 2 2>&1 | Out-Null
+                    Write-OK "WSL2 ustawiony jako domyslny"
+                } catch {
+                    Write-Warning "Nie udalo sie zaktualizowac WSL: $_"
+                    Write-Host "    Sprobuj recznie: wsl --update" -ForegroundColor Gray
+                }
+            }
+        } else {
+            Write-Host ""
+            Write-Host "    Aby zaktualizowac WSL, uruchom jako Administrator:" -ForegroundColor Yellow
+            Write-Host "      wsl --update" -ForegroundColor Cyan
+            Write-Host "      wsl --set-default-version 2" -ForegroundColor Cyan
+        }
+    }
+}
+
 # Sprawdz Docker (jesli Hyper-V OK)
 if (-not $skipDocker) {
     $dockerRunning = $false
