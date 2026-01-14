@@ -304,10 +304,13 @@ function Clone-OpcToProject {
     $originalLocation = Get-Location
     Set-Location $ProjectPath
 
+    $ErrorActionPreference = "SilentlyContinue"
+
     # Probuj oficjalne repo
-    $output = git clone --depth 1 https://github.com/parcadei/Continuous-Claude-v3.git opc 2>&1
-    if ($LASTEXITCODE -eq 0 -and (Test-Path $opcPath)) {
+    git clone --depth 1 https://github.com/parcadei/Continuous-Claude-v3.git opc 2>$null
+    if (Test-Path $opcPath) {
         Set-Location $originalLocation
+        $ErrorActionPreference = "Stop"
         return @{ Success = $true; Message = "Sklonowano z oficjalnego repo" }
     }
 
@@ -317,19 +320,17 @@ function Clone-OpcToProject {
     }
 
     # Probuj mirror
-    $output = git clone --depth 1 https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git opc 2>&1
-    if ($LASTEXITCODE -eq 0 -and (Test-Path $opcPath)) {
+    git clone --depth 1 https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git opc 2>$null
+    if (Test-Path $opcPath) {
         Set-Location $originalLocation
+        $ErrorActionPreference = "Stop"
         return @{ Success = $true; Message = "Sklonowano z mirror" }
     }
 
     Set-Location $originalLocation
+    $ErrorActionPreference = "Stop"
 
-    # Wyciagnij rzeczywisty blad
-    $errorMsg = ($output | Where-Object { $_ -match "fatal:|error:" }) -join "; "
-    if (-not $errorMsg) { $errorMsg = "Repo niedostepne" }
-
-    return @{ Success = $false; Message = $errorMsg }
+    return @{ Success = $false; Message = "Oba repozytoria niedostepne" }
 }
 
 # ============================================================
