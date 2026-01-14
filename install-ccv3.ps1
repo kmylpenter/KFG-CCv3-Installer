@@ -301,30 +301,35 @@ function Clone-OpcToProject {
         return @{ Success = $true; Message = "opc/ juz istnieje" }
     }
 
-    try {
-        Push-Location $ProjectPath
+    $originalLocation = Get-Location
+    Set-Location $ProjectPath
 
-        # Probuj oficjalne repo
-        git clone https://github.com/parcadei/Continuous-Claude-v3.git opc 2>&1 | Out-Null
-        if (Test-Path $opcPath) {
-            Pop-Location
-            return @{ Success = $true; Message = "Sklonowano z oficjalnego repo" }
-        }
-
-        # Probuj mirror
-        git clone https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git opc 2>&1 | Out-Null
-        if (Test-Path $opcPath) {
-            Pop-Location
-            return @{ Success = $true; Message = "Sklonowano z mirror" }
-        }
-
-        Pop-Location
-        return @{ Success = $false; Message = "Nie udalo sie sklonowac" }
-
-    } catch {
-        Pop-Location
-        return @{ Success = $false; Message = "Blad: $_" }
+    # Probuj oficjalne repo
+    $output = git clone --depth 1 https://github.com/parcadei/Continuous-Claude-v3.git opc 2>&1
+    if ($LASTEXITCODE -eq 0 -and (Test-Path $opcPath)) {
+        Set-Location $originalLocation
+        return @{ Success = $true; Message = "Sklonowano z oficjalnego repo" }
     }
+
+    # Usun czesciowy klon jesli istnieje
+    if (Test-Path $opcPath) {
+        Remove-Item -Recurse -Force $opcPath -ErrorAction SilentlyContinue
+    }
+
+    # Probuj mirror
+    $output = git clone --depth 1 https://github.com/kmylpenter/Continuous-Claude-v3-Mirror.git opc 2>&1
+    if ($LASTEXITCODE -eq 0 -and (Test-Path $opcPath)) {
+        Set-Location $originalLocation
+        return @{ Success = $true; Message = "Sklonowano z mirror" }
+    }
+
+    Set-Location $originalLocation
+
+    # Wyciagnij rzeczywisty blad
+    $errorMsg = ($output | Where-Object { $_ -match "fatal:|error:" }) -join "; "
+    if (-not $errorMsg) { $errorMsg = "Repo niedostepne" }
+
+    return @{ Success = $false; Message = $errorMsg }
 }
 
 # ============================================================
