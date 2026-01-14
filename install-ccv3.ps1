@@ -643,16 +643,59 @@ if (-not $hyperVEnabled) {
     if ($vmSupport) {
         Write-Host "    Wirtualizacja CPU: OK (wspierana)" -ForegroundColor Green
         Write-Host ""
-        Write-Host "    Aby wlaczyc Hyper-V, uruchom PowerShell jako Administrator:" -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All" -ForegroundColor Cyan
-        Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "    Lub przez GUI:" -ForegroundColor Yellow
-        Write-Host "      1. Win+R -> optionalfeatures" -ForegroundColor Gray
-        Write-Host "      2. Zaznacz: Hyper-V (wszystkie pola)" -ForegroundColor Gray
-        Write-Host "      3. Zaznacz: Virtual Machine Platform" -ForegroundColor Gray
-        Write-Host "      4. OK -> Restart komputera" -ForegroundColor Gray
+
+        # Sprawdz czy uruchomiono jako Administrator
+        $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if ($isAdmin) {
+            if (Ask-User "Czy chcesz teraz wlaczyc Hyper-V? (wymaga restartu)") {
+                Write-Host ""
+                Write-Info "Wlaczam Hyper-V..."
+
+                try {
+                    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart | Out-Null
+                    Write-OK "Hyper-V wlaczony"
+                } catch {
+                    Write-Warning "Nie udalo sie wlaczyc Hyper-V: $_"
+                }
+
+                try {
+                    Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart | Out-Null
+                    Write-OK "Virtual Machine Platform wlaczony"
+                } catch {
+                    Write-Warning "Nie udalo sie wlaczyc VirtualMachinePlatform: $_"
+                }
+
+                Write-Host ""
+                Write-Host "  +===========================================================+" -ForegroundColor Yellow
+                Write-Host "  |  Hyper-V zostal wlaczony - wymagany RESTART komputera!    |" -ForegroundColor Yellow
+                Write-Host "  |                                                           |" -ForegroundColor Yellow
+                Write-Host "  |  Po restarcie uruchom instalator ponownie.                |" -ForegroundColor Yellow
+                Write-Host "  +===========================================================+" -ForegroundColor Yellow
+                Write-Host ""
+
+                if (Ask-User "Czy chcesz teraz zrestartowac komputer?") {
+                    Write-Info "Restartuje komputer za 5 sekund..."
+                    Start-Sleep -Seconds 5
+                    Restart-Computer -Force
+                } else {
+                    Write-Info "Zrestartuj komputer recznie i uruchom instalator ponownie."
+                    exit 0
+                }
+            }
+        } else {
+            Write-Warning "Instalator nie jest uruchomiony jako Administrator!"
+            Write-Host ""
+            Write-Host "    Aby automatycznie wlaczyc Hyper-V:" -ForegroundColor Yellow
+            Write-Host "      1. Zamknij ten terminal" -ForegroundColor Gray
+            Write-Host "      2. Kliknij prawym na PowerShell -> Uruchom jako administrator" -ForegroundColor Gray
+            Write-Host "      3. Uruchom instalator ponownie" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "    Lub recznie wlacz Hyper-V:" -ForegroundColor Yellow
+            Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All -NoRestart" -ForegroundColor Cyan
+            Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart" -ForegroundColor Cyan
+            Write-Host "      Restart-Computer" -ForegroundColor Cyan
+        }
     } else {
         Write-Error-Custom "Wirtualizacja CPU NIE jest wspierana lub wylaczona w BIOS!"
         Write-Host ""
