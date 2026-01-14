@@ -634,8 +634,8 @@ $diagnosticsTools = @(
     @{ Name = "ruff"; Command = "ruff"; Install = "pip install ruff"; Category = "Python" },
     @{ Name = "eslint"; Command = "eslint"; Install = "npm install -g eslint"; Category = "TypeScript/JS" },
     @{ Name = "tsc"; Command = "tsc"; Install = "npm install -g typescript"; Category = "TypeScript" },
-    @{ Name = "go"; Command = "go"; Install = "winget install GoLang.Go"; Category = "Go" },
-    @{ Name = "clippy"; Command = "cargo-clippy"; Install = "rustup component add clippy"; Category = "Rust" }
+    @{ Name = "go"; Command = "go"; Install = "winget install GoLang.Go -e"; Category = "Go" },
+    @{ Name = "rustup"; Command = "rustup"; Install = "winget install Rustlang.Rustup -e"; Category = "Rust" }
 )
 
 $missingDiag = @()
