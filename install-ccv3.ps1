@@ -622,6 +622,68 @@ if ($missing.Count -gt 0) {
 }
 
 # ============================================================
+# KROK 2.5: DIAGNOSTICS TOOLS (OPCJONALNE)
+# ============================================================
+
+Write-Host ""
+Write-Info "Sprawdzam narzedzia diagnostyczne (linters, type checkers)..."
+Write-Host ""
+
+$diagnosticsTools = @(
+    @{ Name = "pyright"; Command = "pyright"; Install = "pip install pyright"; Category = "Python" },
+    @{ Name = "ruff"; Command = "ruff"; Install = "pip install ruff"; Category = "Python" },
+    @{ Name = "eslint"; Command = "eslint"; Install = "npm install -g eslint"; Category = "TypeScript/JS" },
+    @{ Name = "tsc"; Command = "tsc"; Install = "npm install -g typescript"; Category = "TypeScript" },
+    @{ Name = "go"; Command = "go"; Install = "winget install GoLang.Go"; Category = "Go" },
+    @{ Name = "clippy"; Command = "cargo-clippy"; Install = "rustup component add clippy"; Category = "Rust" }
+)
+
+$missingDiag = @()
+$installedDiag = @()
+
+foreach ($tool in $diagnosticsTools) {
+    if (Test-Command $tool.Command) {
+        $installedDiag += $tool
+        Write-Host "    [OK] $($tool.Category): $($tool.Name)" -ForegroundColor Green
+    } else {
+        $missingDiag += $tool
+        Write-Host "    [X] $($tool.Category): $($tool.Name)" -ForegroundColor DarkGray
+    }
+}
+
+if ($missingDiag.Count -gt 0) {
+    Write-Host ""
+    Write-Host "    Brakujace narzedzia ($($missingDiag.Count)):" -ForegroundColor Yellow
+    Write-Host "    (CCv3 uzywa ich do shift-left feedback - bledy przed testami)" -ForegroundColor Gray
+    Write-Host ""
+
+    foreach ($tool in $missingDiag) {
+        Write-Host "      $($tool.Name): $($tool.Install)" -ForegroundColor DarkGray
+    }
+
+    Write-Host ""
+    if (Ask-User "Czy chcesz zainstalowac brakujace narzedzia diagnostyczne?") {
+        foreach ($tool in $missingDiag) {
+            Write-Host "    [-] Instaluje $($tool.Name)..." -ForegroundColor Cyan
+            try {
+                Invoke-Expression $tool.Install 2>$null | Out-Null
+                if (Test-Command $tool.Command) {
+                    Write-OK "$($tool.Name) zainstalowany"
+                } else {
+                    Write-Warning "$($tool.Name) - sprawdz recznie: $($tool.Install)"
+                }
+            } catch {
+                Write-Warning "$($tool.Name) - blad, sprawdz recznie: $($tool.Install)"
+            }
+        }
+    } else {
+        Write-Info "Pominieto - mozesz zainstalowac pozniej"
+    }
+} else {
+    Write-OK "Wszystkie narzedzia diagnostyczne zainstalowane"
+}
+
+# ============================================================
 # KROK 3: SPRAWDZENIE HYPER-V I DOCKER
 # ============================================================
 
