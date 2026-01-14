@@ -36,10 +36,10 @@ $script:Stats = @{
 
 function Write-Banner {
     Write-Host ""
-    Write-Host "  ╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║           CCv3 Installer v$Version                          ║" -ForegroundColor Cyan
-    Write-Host "  ║     Global Install + Project Scanner + Auto-Migration     ║" -ForegroundColor Cyan
-    Write-Host "  ╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "  +===========================================================+" -ForegroundColor Cyan
+    Write-Host "  |           CCv3 Installer v$Version                          |" -ForegroundColor Cyan
+    Write-Host "  |     Global Install + Project Scanner + Auto-Migration     |" -ForegroundColor Cyan
+    Write-Host "  +===========================================================+" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -47,12 +47,12 @@ function Write-Step {
     param([string]$Step, [string]$Description)
     Write-Host ""
     Write-Host "  [$Step] $Description" -ForegroundColor Yellow
-    Write-Host "  ─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "  -------------------------------------------------------------" -ForegroundColor DarkGray
 }
 
 function Write-OK {
     param([string]$Message)
-    Write-Host "    ✓ $Message" -ForegroundColor Green
+    Write-Host "    [OK] $Message" -ForegroundColor Green
 }
 
 function Write-Warning {
@@ -62,12 +62,12 @@ function Write-Warning {
 
 function Write-Error-Custom {
     param([string]$Message)
-    Write-Host "    ✗ $Message" -ForegroundColor Red
+    Write-Host "    [X] $Message" -ForegroundColor Red
 }
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "    → $Message" -ForegroundColor Cyan
+    Write-Host "    [-] $Message" -ForegroundColor Cyan
 }
 
 function Ask-User {
@@ -439,7 +439,7 @@ function Install-WithPip {
         Write-OK "$Name zainstalowany pomyslnie"
         return $true
     } catch {
-        Write-Error-Custom "Blad instalacji $Name: $_"
+        Write-Error-Custom "Blad instalacji ${Name}: $_"
         return $false
     }
 }
@@ -595,13 +595,13 @@ if ($missing.Count -gt 0) {
 
         if ($needsRestart) {
             Write-Host ""
-            Write-Host "  ╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Yellow
-            Write-Host "  ║  WAZNE: Zainstalowano nowe pakiety!                       ║" -ForegroundColor Yellow
-            Write-Host "  ║                                                           ║" -ForegroundColor Yellow
-            Write-Host "  ║  1. ZAMKNIJ ten terminal                                  ║" -ForegroundColor Yellow
-            Write-Host "  ║  2. Otworz NOWY terminal (PowerShell/cmd)                 ║" -ForegroundColor Yellow
-            Write-Host "  ║  3. Uruchom ponownie ten instalator                       ║" -ForegroundColor Yellow
-            Write-Host "  ╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
+            Write-Host "  +===========================================================+" -ForegroundColor Yellow
+            Write-Host "  |  WAZNE: Zainstalowano nowe pakiety!                       |" -ForegroundColor Yellow
+            Write-Host "  |                                                           |" -ForegroundColor Yellow
+            Write-Host "  |  1. ZAMKNIJ ten terminal                                  |" -ForegroundColor Yellow
+            Write-Host "  |  2. Otworz NOWY terminal (PowerShell/cmd)                 |" -ForegroundColor Yellow
+            Write-Host "  |  3. Uruchom ponownie ten instalator                       |" -ForegroundColor Yellow
+            Write-Host "  +===========================================================+" -ForegroundColor Yellow
             Write-Host ""
             exit 0
         }
@@ -788,7 +788,7 @@ if ($projects.Count -eq 0) {
     $script:Stats.CleanFound = $cleanProjects.Count
 
     if ($ccv3Projects.Count -gt 0) {
-        Write-Host "    ✅ CCv3 (juz zmigrowane): $($ccv3Projects.Count)" -ForegroundColor Green
+        Write-Host "    [OK] CCv3 (juz zmigrowane): $($ccv3Projects.Count)" -ForegroundColor Green
         foreach ($p in $ccv3Projects) {
             Write-Host "       - $($p.Name)" -ForegroundColor DarkGray
         }
@@ -796,7 +796,7 @@ if ($projects.Count -eq 0) {
     }
 
     if ($ccv2Projects.Count -gt 0) {
-        Write-Host "    🔄 CCv2/KFG (do migracji): $($ccv2Projects.Count)" -ForegroundColor Yellow
+        Write-Host "    [~] CCv2/KFG (do migracji): $($ccv2Projects.Count)" -ForegroundColor Yellow
         foreach ($p in $ccv2Projects) {
             Write-Host "       - $($p.Name)" -ForegroundColor DarkGray
         }
@@ -804,7 +804,7 @@ if ($projects.Count -eq 0) {
     }
 
     if ($cleanProjects.Count -gt 0) {
-        Write-Host "    ⬜ Czyste projekty: $($cleanProjects.Count)" -ForegroundColor Cyan
+        Write-Host "    [ ] Czyste projekty: $($cleanProjects.Count)" -ForegroundColor Cyan
         foreach ($p in $cleanProjects) {
             Write-Host "       - $($p.Name)" -ForegroundColor DarkGray
         }
@@ -817,14 +817,14 @@ if ($projects.Count -eq 0) {
 
     if ($ccv2Projects.Count -gt 0) {
         Write-Host ""
-        Write-Host "    ─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+        Write-Host "    -------------------------------------------------------------" -ForegroundColor DarkGray
         Write-Host ""
 
         if (Ask-User "Zmigrować $($ccv2Projects.Count) projekty CCv2 do CCv3?") {
             Write-Host ""
 
             foreach ($project in $ccv2Projects) {
-                Write-Host "    📁 $($project.Name)" -ForegroundColor Cyan
+                Write-Host "    [>] $($project.Name)" -ForegroundColor Cyan
 
                 # Archiwizacja
                 $migResult = Migrate-CCv2Project -ProjectPath $project.Path -ProjectName $project.Name
@@ -851,7 +851,7 @@ if ($projects.Count -eq 0) {
     # ============================================================
 
     Write-Host ""
-    Write-Host "    ─────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+    Write-Host "    -------------------------------------------------------------" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    Czy chcesz sklonowac opc/ do wybranych projektow?" -ForegroundColor White
     Write-Host "    (pozwala na lokalne konfiguracje per-projekt)" -ForegroundColor Gray
@@ -896,7 +896,7 @@ if ($projects.Count -eq 0) {
                 Write-Host ""
 
                 foreach ($project in $selectedProjects) {
-                    Write-Host "    📁 $($project.Name)" -ForegroundColor Cyan
+                    Write-Host "    [>] $($project.Name)" -ForegroundColor Cyan
                     $cloneResult = Clone-OpcToProject -ProjectPath $project.Path
                     if ($cloneResult.Success) {
                         Write-OK $cloneResult.Message
@@ -920,13 +920,13 @@ if ($projects.Count -eq 0) {
 Write-Step "6/6" "Podsumowanie"
 
 Write-Host ""
-Write-Host "  ╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "  ║           CCv3 Instalacja zakonczona!                     ║" -ForegroundColor Green
-Write-Host "  ╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "  +===========================================================+" -ForegroundColor Green
+Write-Host "  |           CCv3 Instalacja zakonczona!                     |" -ForegroundColor Green
+Write-Host "  +===========================================================+" -ForegroundColor Green
 Write-Host ""
 
 # Statystyki
-Write-Host "    📊 Statystyki:" -ForegroundColor White
+Write-Host "    [#] Statystyki:" -ForegroundColor White
 Write-Host ""
 Write-Host "       Projektow przeskanowanych: $($script:Stats.ProjectsScanned)" -ForegroundColor Gray
 Write-Host "       - CCv3 (gotowe):          $($script:Stats.CCv3Found)" -ForegroundColor Green
@@ -939,15 +939,15 @@ Write-Host "       Pominieto:                $($script:Stats.Skipped)" -Foregrou
 Write-Host ""
 
 if ($script:Stats.Errors.Count -gt 0) {
-    Write-Host "    ⚠️ Bledy ($($script:Stats.Errors.Count)):" -ForegroundColor Yellow
+    Write-Host "    [!] Bledy ($($script:Stats.Errors.Count)):" -ForegroundColor Yellow
     foreach ($err in $script:Stats.Errors) {
         Write-Host "       - $err" -ForegroundColor Red
     }
     Write-Host ""
 }
 
-Write-Host "    📁 Hooki globalne: ~/.claude/hooks/" -ForegroundColor Gray
-Write-Host "    📁 Folder projektow: $projectsRoot" -ForegroundColor Gray
+Write-Host "    [>] Hooki globalne: ~/.claude/hooks/" -ForegroundColor Gray
+Write-Host "    [>] Folder projektow: $projectsRoot" -ForegroundColor Gray
 Write-Host ""
 
 Write-Host "    Nastepne kroki:" -ForegroundColor White
