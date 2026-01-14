@@ -833,7 +833,7 @@ $claudeDir = "$env:USERPROFILE\.claude"
 $hooksDir = "$claudeDir\hooks"
 
 # Sprawdz czy hooki CCv3 juz sa zainstalowane
-$ccv3HooksInstalled = Test-Path "$hooksDir\ccv3-pre-compact.ps1" -or Test-Path "$hooksDir\pre-compact.sh"
+$ccv3HooksInstalled = (Test-Path "$hooksDir\ccv3-pre-compact.ps1") -or (Test-Path "$hooksDir\pre-compact.sh")
 
 if ($ccv3HooksInstalled) {
     Write-OK "Hooki CCv3 juz zainstalowane w ~/.claude/hooks/"
