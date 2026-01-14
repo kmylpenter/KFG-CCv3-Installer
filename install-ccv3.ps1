@@ -616,63 +616,123 @@ if ($missing.Count -gt 0) {
 }
 
 # ============================================================
-# KROK 3: SPRAWDZENIE DOCKER
+# KROK 3: SPRAWDZENIE HYPER-V I DOCKER
 # ============================================================
 
-Write-Step "3/6" "Sprawdzanie Docker Desktop"
+Write-Step "3/6" "Sprawdzanie wirtualizacji i Docker Desktop"
 
-$dockerRunning = $false
+# Sprawdz Hyper-V przed Docker
+$hyperVEnabled = $false
 try {
-    $dockerPs = docker ps 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        $dockerRunning = $true
-        Write-OK "Docker Desktop dziala"
+    $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -ErrorAction SilentlyContinue
+    if ($hyperVFeature -and $hyperVFeature.State -eq "Enabled") {
+        $hyperVEnabled = $true
+        Write-OK "Hyper-V jest wlaczony"
     }
 } catch {}
 
-if (-not $dockerRunning) {
-    Write-Warning "Docker Desktop nie jest uruchomiony!"
+if (-not $hyperVEnabled) {
+    # Sprawdz czy wirtualizacja jest wspierana
+    $vmSupport = (Get-CimInstance -ClassName Win32_Processor).VMMonitorModeExtensions
+
+    Write-Warning "Hyper-V nie jest wlaczony!"
     Write-Host ""
-    Write-Host "    Instrukcja:" -ForegroundColor White
-    Write-Host "      1. Uruchom Docker Desktop z menu Start" -ForegroundColor Gray
-    Write-Host "      2. Poczekaj az ikona w tray bedzie ZIELONA" -ForegroundColor Gray
-    Write-Host "      3. Moze to zajac 1-2 minuty" -ForegroundColor Gray
+    Write-Host "    Docker Desktop wymaga Hyper-V do dzialania." -ForegroundColor White
     Write-Host ""
 
-    Write-Host "    Czy Docker Desktop jest juz uruchomiony? [T/n] " -ForegroundColor White -NoNewline
+    if ($vmSupport) {
+        Write-Host "    Wirtualizacja CPU: OK (wspierana)" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "    Aby wlaczyc Hyper-V, uruchom PowerShell jako Administrator:" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All -All" -ForegroundColor Cyan
+        Write-Host "      Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "    Lub przez GUI:" -ForegroundColor Yellow
+        Write-Host "      1. Win+R -> optionalfeatures" -ForegroundColor Gray
+        Write-Host "      2. Zaznacz: Hyper-V (wszystkie pola)" -ForegroundColor Gray
+        Write-Host "      3. Zaznacz: Virtual Machine Platform" -ForegroundColor Gray
+        Write-Host "      4. OK -> Restart komputera" -ForegroundColor Gray
+    } else {
+        Write-Error-Custom "Wirtualizacja CPU NIE jest wspierana lub wylaczona w BIOS!"
+        Write-Host ""
+        Write-Host "    Sprawdz ustawienia BIOS:" -ForegroundColor Yellow
+        Write-Host "      1. Uruchom ponownie komputer" -ForegroundColor Gray
+        Write-Host "      2. Wejdz do BIOS (F2/F10/Del przy starcie)" -ForegroundColor Gray
+        Write-Host "      3. Znajdz: Intel VT-x / AMD-V / SVM Mode" -ForegroundColor Gray
+        Write-Host "      4. Wlacz -> Zapisz -> Restart" -ForegroundColor Gray
+    }
 
-    $maxAttempts = 30
-    $attempt = 0
+    Write-Host ""
+    if (-not (Ask-User "Czy chcesz kontynuowac bez Docker? (CCv3 zadziala, ale bez kontenerow)")) {
+        Write-Host ""
+        Write-Info "Wlacz Hyper-V, zrestartuj komputer i uruchom instalator ponownie."
+        exit 0
+    }
 
-    while (-not $dockerRunning -and $attempt -lt $maxAttempts) {
-        $response = Read-Host
+    Write-Warning "Kontynuuje bez Docker - niektore funkcje CCv3 beda niedostepne"
+    $skipDocker = $true
+} else {
+    $skipDocker = $false
+}
 
-        if ($response -eq "n" -or $response -eq "N") {
-            Write-Info "Uruchom Docker Desktop i wcisnij Enter gdy bedzie gotowy..."
-            Read-Host | Out-Null
+# Sprawdz Docker (jesli Hyper-V OK)
+if (-not $skipDocker) {
+    $dockerRunning = $false
+    try {
+        $dockerPs = docker ps 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            $dockerRunning = $true
+            Write-OK "Docker Desktop dziala"
         }
+    } catch {}
 
-        try {
-            $null = docker ps 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $dockerRunning = $true
-                Write-OK "Docker Desktop dziala!"
-            } else {
+    if (-not $dockerRunning) {
+        Write-Warning "Docker Desktop nie jest uruchomiony!"
+        Write-Host ""
+        Write-Host "    Instrukcja:" -ForegroundColor White
+        Write-Host "      1. Uruchom Docker Desktop z menu Start" -ForegroundColor Gray
+        Write-Host "      2. Poczekaj az ikona w tray bedzie ZIELONA" -ForegroundColor Gray
+        Write-Host "      3. Moze to zajac 1-2 minuty" -ForegroundColor Gray
+        Write-Host ""
+
+        Write-Host "    Czy Docker Desktop jest juz uruchomiony? [T/n] " -ForegroundColor White -NoNewline
+
+        $maxAttempts = 30
+        $attempt = 0
+
+        while (-not $dockerRunning -and $attempt -lt $maxAttempts) {
+            $response = Read-Host
+
+            if ($response -eq "n" -or $response -eq "N") {
+                Write-Info "Uruchom Docker Desktop i wcisnij Enter gdy bedzie gotowy..."
+                Read-Host | Out-Null
+            }
+
+            try {
+                $null = docker ps 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $dockerRunning = $true
+                    Write-OK "Docker Desktop dziala!"
+                } else {
+                    Write-Warning "Docker jeszcze nie gotowy, czekam..."
+                    Start-Sleep -Seconds 3
+                    $attempt++
+                }
+            } catch {
                 Write-Warning "Docker jeszcze nie gotowy, czekam..."
                 Start-Sleep -Seconds 3
                 $attempt++
             }
-        } catch {
-            Write-Warning "Docker jeszcze nie gotowy, czekam..."
-            Start-Sleep -Seconds 3
-            $attempt++
+        }
+
+        if (-not $dockerRunning) {
+            Write-Error-Custom "Nie mozna polaczyc z Docker. Uruchom Docker Desktop i sprobuj ponownie."
+            exit 1
         }
     }
-
-    if (-not $dockerRunning) {
-        Write-Error-Custom "Nie mozna polaczyc z Docker. Uruchom Docker Desktop i sprobuj ponownie."
-        exit 1
-    }
+} else {
+    Write-Info "Pomijam sprawdzanie Docker (Hyper-V niedostepny)"
 }
 
 # ============================================================
