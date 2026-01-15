@@ -285,17 +285,17 @@ function Clean-GlobalClaudeMd {
 
 function Remove-LegacyRules {
     # Usuwa stare rules CCv2 z ~/.claude/rules/
+    # UWAGA: cross-terminal-db, dynamic-recall, agent-memory-recall, proactive-memory-disclosure
+    #        SA CZESCIA CCv3! Nie usuwaj ich.
     $rulesDir = "$env:USERPROFILE\.claude\rules"
 
     if (-not (Test-Path $rulesDir)) {
         return @{ Success = $true; Message = "Brak folderu rules/"; Removed = @() }
     }
 
+    # Tylko stare hooki/rules ktore NIE sa w CCv3
     $legacyRules = @(
-        "cross-terminal-db.md",      # PostgreSQL CCv2 database
-        "dynamic-recall.md",         # opc/ recall scripts
-        "agent-memory-recall.md",    # opc/ recall scripts
-        "proactive-memory-disclosure.md"  # Memory hooks CCv2
+        # Obecnie brak - wszystkie sprawdzone rules sa czescia CCv3
     )
 
     $removed = @()
@@ -304,7 +304,6 @@ function Remove-LegacyRules {
     foreach ($rule in $legacyRules) {
         $rulePath = Join-Path $rulesDir $rule
         if (Test-Path $rulePath) {
-            # Archiwizuj zamiast usuwac
             if (-not (Test-Path $archiveDir)) {
                 New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
             }
@@ -316,7 +315,7 @@ function Remove-LegacyRules {
     if ($removed.Count -gt 0) {
         return @{ Success = $true; Message = "Zarchiwizowano $($removed.Count) rules"; Removed = $removed }
     } else {
-        return @{ Success = $true; Message = "Brak starych rules do usuniecia"; Removed = @() }
+        return @{ Success = $true; Message = "Wszystkie rules sa aktualne (CCv3)"; Removed = @() }
     }
 }
 
