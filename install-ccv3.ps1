@@ -211,6 +211,115 @@ function Remove-OldHooks {
     return $removed
 }
 
+function Clean-GlobalClaudeMd {
+    # Usuwa sekcje KFG/CCv2 z ~/.claude/CLAUDE.md
+    $claudeMdPath = "$env:USERPROFILE\.claude\CLAUDE.md"
+
+    if (-not (Test-Path $claudeMdPath)) {
+        return @{ Success = $false; Message = "Brak CLAUDE.md"; Removed = 0 }
+    }
+
+    try {
+        $content = Get-Content $claudeMdPath -Raw
+        $originalLength = $content.Length
+
+        # Sekcje do usuniecia (regex patterns)
+        $sectionsToRemove = @(
+            # AUTO-RESUME po kompakcji
+            '(?ms)^## AUTO-RESUME po kompakcji.*?(?=^---|\z)',
+            # Komendy KFG
+            '(?ms)^## Komendy KFG.*?(?=^---|\z)',
+            # Komenda "com" - LFG MODE
+            '(?ms)^### Komenda "com".*?(?=^###|^##|^---|\z)',
+            # Komenda "eos" - END OF SESSION (stara wersja)
+            '(?ms)^### Komenda "eos" - END OF SESSION.*?(?=^###|^##|^---|\z)',
+            # Cross-Device Stats
+            '(?ms)^### Cross-Device Stats.*?(?=^###|^##|^---|\z)',
+            # Autonomia
+            '(?ms)^### Autonomia.*?(?=^###|^##|^---|\z)',
+            # Komenda "stan"
+            '(?ms)^## Komenda "stan".*?(?=^---|\z)',
+            # Praca Autonomiczna (cala sekcja)
+            '(?ms)^## Praca Autonomiczna.*?(?=^---|\z)',
+            # Visual Validation
+            '(?ms)^## Visual Validation.*?(?=^---|\z)',
+            # Co robie automatycznie
+            '(?ms)^## Co robie automatycznie.*?(?=^---|\z)',
+            # Delegowanie
+            '(?ms)^## Delegowanie \(oszczednosc.*?(?=^---|\z)',
+            # Dokumentacja (stara sekcja z odwolaniami do LFG)
+            '(?ms)^## Dokumentacja\s*\n\s*- Pelna dokumentacja: `docs/AUTONOMOUS-LFG.*?(?=^---|\z)',
+            # KFG - KOMENDY box
+            '(?ms)^\+={50,}.*?KFG - KOMENDY.*?\+={50,}\+\s*```',
+            # Puste separatory (---)
+            '(?m)^---\s*\n---',
+            # Wielokrotne puste linie
+            '\n{4,}'
+        )
+
+        foreach ($pattern in $sectionsToRemove) {
+            $content = $content -replace $pattern, ''
+        }
+
+        # Usun puste separatory na koncu
+        $content = $content -replace '(?ms)\s*---\s*$', ''
+
+        # Usun wielokrotne puste linie
+        $content = $content -replace '\n{3,}', "`n`n"
+
+        # Trim
+        $content = $content.Trim() + "`n"
+
+        $removedBytes = $originalLength - $content.Length
+
+        if ($removedBytes -gt 0) {
+            Set-Content $claudeMdPath -Value $content -Encoding UTF8 -NoNewline
+            return @{ Success = $true; Message = "Usunieto $removedBytes bajtow z CLAUDE.md"; Removed = $removedBytes }
+        } else {
+            return @{ Success = $true; Message = "CLAUDE.md juz czysty"; Removed = 0 }
+        }
+    } catch {
+        return @{ Success = $false; Message = "Blad: $_"; Removed = 0 }
+    }
+}
+
+function Remove-LegacyRules {
+    # Usuwa stare rules CCv2 z ~/.claude/rules/
+    $rulesDir = "$env:USERPROFILE\.claude\rules"
+
+    if (-not (Test-Path $rulesDir)) {
+        return @{ Success = $true; Message = "Brak folderu rules/"; Removed = @() }
+    }
+
+    $legacyRules = @(
+        "cross-terminal-db.md",      # PostgreSQL CCv2 database
+        "dynamic-recall.md",         # opc/ recall scripts
+        "agent-memory-recall.md",    # opc/ recall scripts
+        "proactive-memory-disclosure.md"  # Memory hooks CCv2
+    )
+
+    $removed = @()
+    $archiveDir = "$rulesDir\_archive_ccv2"
+
+    foreach ($rule in $legacyRules) {
+        $rulePath = Join-Path $rulesDir $rule
+        if (Test-Path $rulePath) {
+            # Archiwizuj zamiast usuwac
+            if (-not (Test-Path $archiveDir)) {
+                New-Item -ItemType Directory -Path $archiveDir -Force | Out-Null
+            }
+            Move-Item -Path $rulePath -Destination "$archiveDir\$rule" -Force
+            $removed += $rule
+        }
+    }
+
+    if ($removed.Count -gt 0) {
+        return @{ Success = $true; Message = "Zarchiwizowano $($removed.Count) rules"; Removed = $removed }
+    } else {
+        return @{ Success = $true; Message = "Brak starych rules do usuniecia"; Removed = @() }
+    }
+}
+
 # ============================================================
 # DETEKCJA TYPU PROJEKTU I SKANOWANIE
 # ============================================================
@@ -1028,6 +1137,54 @@ if (Ask-User "Uruchomic wizard CCv3 teraz? (ZALECANE)") {
 }
 
 Set-Location $env:USERPROFILE
+
+# ============================================================
+# KROK 4.5: CLEANUP CCv2/KFG POZOSTALOSCI
+# ============================================================
+
+Write-Host ""
+Write-Step "4.5" "Czyszczenie pozostalosci CCv2/KFG"
+
+# Cleanup CLAUDE.md
+Write-Info "Sprawdzam ~/.claude/CLAUDE.md..."
+$cleanResult = Clean-GlobalClaudeMd
+if ($cleanResult.Success) {
+    if ($cleanResult.Removed -gt 0) {
+        Write-OK $cleanResult.Message
+        Write-OK "Usunieto sekcje: AUTO-RESUME, Komendy KFG, Praca Autonomiczna, itp."
+    } else {
+        Write-OK $cleanResult.Message
+    }
+} else {
+    Write-Warning $cleanResult.Message
+}
+
+# Cleanup legacy rules
+Write-Host ""
+Write-Info "Sprawdzam ~/.claude/rules/..."
+$rulesResult = Remove-LegacyRules
+if ($rulesResult.Success) {
+    if ($rulesResult.Removed.Count -gt 0) {
+        Write-OK $rulesResult.Message
+        foreach ($rule in $rulesResult.Removed) {
+            Write-OK "  - $rule -> _archive_ccv2/"
+        }
+    } else {
+        Write-OK $rulesResult.Message
+    }
+} else {
+    Write-Warning $rulesResult.Message
+}
+
+# Cleanup old hooks
+Write-Host ""
+Write-Info "Sprawdzam stare hooki..."
+$hooksRemoved = Remove-OldHooks
+if ($hooksRemoved -gt 0) {
+    Write-OK "Usunieto $hooksRemoved starych hookow"
+} else {
+    Write-OK "Brak starych hookow do usuniecia"
+}
 
 # ============================================================
 # KROK 5: SKANOWANIE PROJEKTOW
