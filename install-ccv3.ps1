@@ -814,8 +814,8 @@ Refresh-Path  # Odswiez PATH - moze juz zainstalowane w poprzedniej sesji
 Write-Host ""
 
 $diagnosticsTools = @(
-    @{ Name = "pyright"; Command = "pyright"; Install = "pip install pyright"; Category = "Python" },
-    @{ Name = "ruff"; Command = "ruff"; Install = "pip install ruff"; Category = "Python" },
+    @{ Name = "pyright"; Command = "pyright"; Install = "python -m pip install pyright"; Category = "Python" },
+    @{ Name = "ruff"; Command = "ruff"; Install = "python -m pip install ruff"; Category = "Python" },
     @{ Name = "eslint"; Command = "eslint"; Install = "npm install -g eslint"; Category = "TypeScript/JS" },
     @{ Name = "tsc"; Command = "tsc"; Install = "npm install -g typescript"; Category = "TypeScript" },
     @{ Name = "go"; Command = "go"; Install = "winget install GoLang.Go -e"; Category = "Go" },
@@ -950,9 +950,23 @@ if (-not $hyperVEnabled -and -not $dockerWorks) {
             }
         }
     } else {
-        Write-Host "    Aby naprawic:" -ForegroundColor Yellow
-        Write-Host "      1. Uruchom Docker Desktop" -ForegroundColor Gray
-        Write-Host "      2. Jesli blad - uruchom instalator jako Administrator" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  +===========================================================+" -ForegroundColor Red
+        Write-Host "  |  WYMAGANE: Uruchom instalator jako ADMINISTRATOR          |" -ForegroundColor Red
+        Write-Host "  +===========================================================+" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "    Hyper-V nie jest wlaczony. Aby naprawic:" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "      1. Zamknij ten terminal" -ForegroundColor Gray
+        Write-Host "      2. Kliknij PPM na PowerShell -> 'Uruchom jako administrator'" -ForegroundColor Gray
+        Write-Host "      3. Uruchom instalator ponownie" -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "    Instalator wlaczy Hyper-V i poprosi o restart." -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "    Alternatywnie (recznie):" -ForegroundColor DarkGray
+        Write-Host "      - Panel sterowania > Programy > Wlacz funkcje Windows" -ForegroundColor DarkGray
+        Write-Host "      - Zaznacz: Hyper-V, Virtual Machine Platform, WSL" -ForegroundColor DarkGray
+        Write-Host "      - Restart komputera" -ForegroundColor DarkGray
     }
 
     Write-Host ""
