@@ -1,0 +1,60 @@
+---
+session: KFG-CCv3-Installer
+date: 2026-01-19
+status: complete
+outcome: SUCCEEDED
+---
+
+goal: Naprawiono wykrywanie pip-installed tools (uv, pyright, ruff) i komunikaty Hyper-V
+now: Pawel powinien git pull i odpalic instalator jako Administrator
+
+test: powershell -ExecutionPolicy Bypass -File install-ccv3.ps1
+
+done_this_session:
+  - task: Dodano funkcje Refresh-Path do odswiezania PATH po instalacji
+    files: [install-ccv3.ps1]
+  - task: Zmieniono instalator uv z pip na oficjalny Astral
+    files: [install-ccv3.ps1]
+  - task: Zmieniono pip install na python -m pip install dla pyright/ruff
+    files: [install-ccv3.ps1]
+  - task: Dodano wyrazny komunikat o wymaganiu Admin dla Hyper-V
+    files: [install-ccv3.ps1]
+
+blockers: []
+
+questions: []
+
+decisions:
+  - uv_installer: Oficjalny instalator Astral (irm https://astral.sh/uv/install.ps1 | iex) zamiast pip - pip nie dodaje uv.exe do PATH
+  - python_m_pip: python -m pip install bardziej niezawodne niz pip install na Windows
+
+findings:
+  - pip_path_issue: pip install na Windows instaluje do Python Scripts folder ktory moze nie byc w PATH
+  - refresh_path: Po instalacji pip packages trzeba odswiezyc PATH w biezacej sesji PowerShell
+
+worked:
+  - Refresh-Path odswiezajacy Machine+User PATH plus typowe sciezki Scripts
+  - Wywolywanie Refresh-Path przed sprawdzaniem i po kazdej instalacji
+
+failed:
+  - pip install uv - nie dodaje do PATH
+  - pip install pyright/ruff bez Refresh-Path - nie wykrywane
+
+next:
+  - Pawel: git pull i uruchomic jako Administrator
+  - Sprawdzic czy instalacja pyright/ruff dziala na komputerze Pawla
+  - Jesli BIOS ma wylaczona wirtualizacje - trzeba wlaczyc w BIOS
+
+files:
+  created: []
+  modified: [install-ccv3.ps1]
+
+context:
+  commits:
+    - 119695e: "fix: add Refresh-Path to detect pip-installed tools (uv, pyright, ruff)"
+    - 4f816f2: "fix: improve pip install and Hyper-V admin messaging"
+  key_changes:
+    - install-ccv3.ps1:569-591: Funkcja Refresh-Path
+    - install-ccv3.ps1:653: uv instalator zmieniony na Astral
+    - install-ccv3.ps1:817-818: python -m pip dla pyright/ruff
+    - install-ccv3.ps1:952-970: Nowy komunikat Admin dla Hyper-V
