@@ -566,6 +566,30 @@ function Check-Dependency {
     return $result
 }
 
+function Refresh-Path {
+    # Odswieza PATH w biezacej sesji PowerShell po instalacji
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath"
+
+    # Dodaj tez typowe sciezki Python Scripts jesli istnieja
+    $pythonScripts = @(
+        "$env:LOCALAPPDATA\Programs\Python\Python313\Scripts",
+        "$env:LOCALAPPDATA\Programs\Python\Python312\Scripts",
+        "$env:LOCALAPPDATA\Programs\Python\Python311\Scripts",
+        "$env:APPDATA\Python\Python313\Scripts",
+        "$env:APPDATA\Python\Python312\Scripts",
+        "$env:APPDATA\Python\Python311\Scripts",
+        "$env:USERPROFILE\.local\bin",  # uv instaluje tutaj
+        "$env:USERPROFILE\.cargo\bin"   # cargo/rustup
+    )
+    foreach ($p in $pythonScripts) {
+        if ((Test-Path $p) -and ($env:Path -notlike "*$p*")) {
+            $env:Path = "$env:Path;$p"
+        }
+    }
+}
+
 function Install-WithWinget {
     param([string]$Package, [string]$Name)
 
@@ -577,7 +601,7 @@ function Install-WithWinget {
 
         if ($process.ExitCode -eq 0) {
             Write-OK "$Name zainstalowany pomyslnie"
-            Write-Warning "WAZNE: Zamknij i otworz nowy terminal aby zmiany PATH zostaly zaladowane!"
+            Refresh-Path
             return $true
         } else {
             Write-Error-Custom "Blad instalacji $Name (kod: $($process.ExitCode))"
@@ -596,6 +620,7 @@ function Install-WithPip {
 
     try {
         & pip install $Package 2>&1 | Out-Null
+        Refresh-Path
         Write-OK "$Name zainstalowany pomyslnie"
         return $true
     } catch {
@@ -615,6 +640,9 @@ Write-Banner
 # ============================================================
 
 Write-Step "1/6" "Sprawdzanie wymaganych zaleznosci"
+
+# Odswiez PATH na poczatku - wykryj narzedzia zainstalowane w poprzednich sesjach
+Refresh-Path
 
 $dependencies = @(
     @{
@@ -650,7 +678,7 @@ $dependencies = @(
         Command = "uv"
         MinVersion = $null
         WingetPackage = $null
-        AltInstall = "pip install uv"
+        AltInstall = "irm https://astral.sh/uv/install.ps1 | iex"
     },
     @{
         Name = "Claude Code"
@@ -712,6 +740,7 @@ if ($missing.Count -gt 0) {
                 Write-Info "Probuje alternatywna metode: $($m.AltInstall)"
                 try {
                     Invoke-Expression $m.AltInstall 2>&1 | Out-Null
+                    Refresh-Path
                     Write-OK "$($m.Name) zainstalowany"
                     $installed = $true
                 } catch {
@@ -743,7 +772,7 @@ if ($missing.Count -gt 0) {
                         Write-Host "      3. Uruchom i poczekaj az ikona bedzie zielona" -ForegroundColor Gray
                     }
                     "uv" {
-                        Write-Host "      Uruchom: pip install uv" -ForegroundColor Gray
+                        Write-Host "      Uruchom: irm https://astral.sh/uv/install.ps1 | iex" -ForegroundColor Gray
                     }
                     "Claude Code" {
                         Write-Host "      Uruchom: npm install -g @anthropic-ai/claude-code" -ForegroundColor Gray
@@ -781,6 +810,7 @@ if ($missing.Count -gt 0) {
 
 Write-Host ""
 Write-Info "Sprawdzam narzedzia diagnostyczne (linters, type checkers)..."
+Refresh-Path  # Odswiez PATH - moze juz zainstalowane w poprzedniej sesji
 Write-Host ""
 
 $diagnosticsTools = @(
@@ -821,6 +851,7 @@ if ($missingDiag.Count -gt 0) {
             Write-Host "    [-] Instaluje $($tool.Name)..." -ForegroundColor Cyan
             try {
                 Invoke-Expression $tool.Install 2>$null | Out-Null
+                Refresh-Path  # Odswiez PATH po instalacji
                 if (Test-Command $tool.Command) {
                     Write-OK "$($tool.Name) zainstalowany"
                 } else {
